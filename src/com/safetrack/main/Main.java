@@ -26,7 +26,7 @@ public class Main extends Application {
             Connection conn = DatabaseConnection.getConnection();
             Statement stmt = Objects.requireNonNull(conn).createStatement();
 
-            // ✅ USERS TABLE (MySQL)
+            //  USERS TABLE (MySQL)
             stmt.execute(
                     "CREATE TABLE IF NOT EXISTS users (" +
                             "id INT PRIMARY KEY AUTO_INCREMENT, " +
@@ -37,7 +37,7 @@ public class Main extends Application {
                             "role VARCHAR(20))"
             );
 
-            // ✅ BUSES TABLE
+            //  BUSES TABLE
             stmt.execute(
                     "CREATE TABLE IF NOT EXISTS buses (" +
                             "id INT PRIMARY KEY AUTO_INCREMENT, " +
@@ -48,7 +48,7 @@ public class Main extends Application {
             );
             try { stmt.execute("ALTER TABLE buses ADD COLUMN route_id INT"); } catch (Exception ignored) {}
 
-            // ✅ ROUTES TABLE
+            //  ROUTES TABLE
             stmt.execute(
                     "CREATE TABLE IF NOT EXISTS routes (" +
                             "id INT PRIMARY KEY AUTO_INCREMENT, " +
@@ -57,7 +57,7 @@ public class Main extends Application {
                             "fare DOUBLE)"
             );
 
-            // ✅ BOOKINGS TABLE
+            //  BOOKINGS TABLE
             stmt.execute(
                     "CREATE TABLE IF NOT EXISTS bookings (" +
                             "id INT PRIMARY KEY AUTO_INCREMENT, " +
@@ -66,7 +66,7 @@ public class Main extends Application {
                             "seat VARCHAR(10))"
             );
 
-            // ✅ EMERGENCY CONTACTS TABLE
+            //  EMERGENCY CONTACTS TABLE
             stmt.execute(
                     "CREATE TABLE IF NOT EXISTS emergency_contacts (" +
                             "id INT PRIMARY KEY AUTO_INCREMENT, " +
@@ -75,7 +75,7 @@ public class Main extends Application {
                             "relation VARCHAR(50))"
             );
 
-            // ✅ DEFAULT EMERGENCY CONTACTS
+            //  DEFAULT EMERGENCY CONTACTS
             stmt.executeUpdate(
                     "INSERT IGNORE INTO emergency_contacts (id, name, phone, relation) VALUES " +
                             "(1, 'Police', '100', '🚒'), " +
@@ -84,7 +84,7 @@ public class Main extends Application {
                             "(4, 'SafeTrack Support', '9800000000', '🚌')"
             );
 
-            // ✅ DEFAULT USERS (MySQL syntax)
+            //  DEFAULT USERS (MySQL syntax)
             stmt.executeUpdate(
                     "INSERT IGNORE INTO users (id, name, username, email, password, role) VALUES " +
                             "(1, 'Admin', 'admin', 'admin@gmail.com', '123', 'ADMIN')"
@@ -95,7 +95,7 @@ public class Main extends Application {
                             "(2, 'User', 'user', 'user@gmail.com', '123', 'PASSENGER')"
             );
 
-            // ✅ DEFAULT ROUTES
+            //  DEFAULT ROUTES
             stmt.executeUpdate(
                     "INSERT IGNORE INTO routes (id, source, destination, fare) VALUES " +
                             "(1, 'KTM', 'JKR', 1800), " +
@@ -106,7 +106,7 @@ public class Main extends Application {
                             "(6, 'DHI', 'BIR', 3000)"
             );
 
-            // ✅ DEFAULT BUSES
+            //  DEFAULT BUSES
             stmt.executeUpdate(
                     "INSERT IGNORE INTO buses (id, name, number, capacity, route_id) VALUES " +
                             "(1, 'BUS1', '101', 40, 1), " +
@@ -117,7 +117,7 @@ public class Main extends Application {
                             "(6, 'BUS6', '106', 40, 6)"
             );
 
-            System.out.println("✅ Database ready!");
+            System.out.println(" Database ready!");
 
         } catch (Exception e) {
             e.printStackTrace();
