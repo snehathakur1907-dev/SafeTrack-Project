@@ -238,6 +238,7 @@ public class PassengerDashboardView extends Application {
 
         contentArea = new VBox(20);
         contentArea.setPadding(new Insets(28));
+        contentArea.setStyle("-fx-font-smoothing-type: lcd;");
 
         ScrollPane scroll = new ScrollPane(contentArea);
         scroll.setFitToWidth(true);
@@ -437,46 +438,47 @@ public class PassengerDashboardView extends Application {
     private void loadBookPage() {
         contentArea.getChildren().add(sectionLabel("Book a Ride"));
 
-        VBox formCard = new VBox(18);
-        formCard.setPadding(new Insets(28));
-        formCard.setMaxWidth(500);
-        formCard.setStyle("-fx-background-color: white; -fx-background-radius: 14;");
-        formCard.setEffect(new DropShadow(12, 0, 3, Color.gray(0, 0.08)));
+        VBox formCard = new VBox(15);
+        formCard.setPadding(new Insets(24));
+        formCard.setMaxWidth(600);
+        formCard.setStyle("-fx-background-color: white; -fx-background-radius: 12;");
+        formCard.setEffect(new DropShadow(10, 0, 3, Color.gray(0, 0.08)));
 
-        Label instruc = new Label("Fill in the details to book your ride:");
+        Label instruc = new Label("Select your journey details and pick an available seat.");
         instruc.setStyle("-fx-font-size: 13px; -fx-text-fill: #777; -fx-font-family: 'Segoe UI';");
 
-        // Route Select
+        com.safetrack.controller.BookingController controller = new com.safetrack.controller.BookingController();
+
+        // ── Selection Fields ──
+        // Row 1: Route selector
         VBox routeBox = new VBox(6);
-        Label routeLbl = new Label("Select Route");
+        Label routeLbl = new Label("Select Destination");
         routeLbl.setStyle(fieldLabelStyle());
         ComboBox<String> routeSelect = new ComboBox<>();
         routeSelect.setPromptText("Choose your destination");
-        routeSelect.setPrefWidth(400);
-        routeSelect.setPrefHeight(40);
-        routeSelect.setStyle("-fx-background-color: #f4f5f7; -fx-background-radius: 8; -fx-border-color: #e2e2e2; -fx-border-radius: 8; -fx-border-width: 1.5; -fx-font-size: 13px; -fx-font-family: 'Segoe UI';");
-        routeBox.getChildren().addAll(routeLbl, routeSelect);
-
-        // Bus Select
-        VBox busBox = new VBox(6);
-        Label busLbl = new Label("Available Buses");
-        busLbl.setStyle(fieldLabelStyle());
-        ComboBox<String> busSelect = new ComboBox<>();
-        busSelect.setPromptText("Select a bus");
-        busSelect.setPrefWidth(400);
-        busSelect.setPrefHeight(40);
-        busSelect.setStyle("-fx-background-color: #f4f5f7; -fx-background-radius: 8; -fx-border-color: #e2e2e2; -fx-border-radius: 8; -fx-border-width: 1.5; -fx-font-size: 13px; -fx-font-family: 'Segoe UI';");
-        busBox.getChildren().addAll(busLbl, busSelect);
-
-        // Populate Routes
+        routeSelect.setPrefWidth(500);
+        routeSelect.setStyle("-fx-background-color: #f4f5f7; -fx-background-radius: 6; -fx-border-color: #e2e2e2; -fx-border-radius: 6; -fx-border-width: 1.5; -fx-font-size: 13px;");
         try (Connection c = DatabaseConnection.getConnection()) {
             ResultSet rs = c.createStatement().executeQuery("SELECT id, source, destination FROM routes");
             while(rs.next()) {
                 routeSelect.getItems().add(rs.getInt("id") + " - " + rs.getString("source") + " \u2192 " + rs.getString("destination"));
             }
         } catch (Exception ignored) {}
+        routeBox.getChildren().addAll(routeLbl, routeSelect);
 
-        // Populate Buses based on Route
+        // Row 2: Bus, Date, Time
+        HBox topRow = new HBox(15);
+        
+        VBox busBox = new VBox(6);
+        Label busLbl = new Label("Select Bus");
+        busLbl.setStyle(fieldLabelStyle());
+        ComboBox<String> busSelect = new ComboBox<>();
+        busSelect.setPromptText("Select a bus");
+        busSelect.setPrefWidth(300);
+        busSelect.setStyle("-fx-background-color: #f4f5f7; -fx-background-radius: 6; -fx-border-color: #e2e2e2; -fx-border-radius: 6; -fx-font-size: 13px;");
+        busBox.getChildren().addAll(busLbl, busSelect);
+
+        // Populate buses when a route is selected
         routeSelect.setOnAction(ev -> {
             busSelect.getItems().clear();
             if(routeSelect.getValue() != null) {
@@ -490,130 +492,158 @@ public class PassengerDashboardView extends Application {
             }
         });
 
-        // Seat visual representation
+        VBox dateBox = new VBox(6);
+        Label dateLbl = new Label("Journey Date");
+        dateLbl.setStyle(fieldLabelStyle());
+        DatePicker datePicker = new DatePicker();
+        datePicker.setPrefWidth(140);
+        datePicker.setStyle("-fx-background-color: #f4f5f7; -fx-font-size: 13px;");
+        dateBox.getChildren().addAll(dateLbl, datePicker);
+
+        VBox timeBox = new VBox(6);
+        Label timeLbl = new Label("Departure Time");
+        timeLbl.setStyle(fieldLabelStyle());
+        ComboBox<String> timeSelect = new ComboBox<>();
+        timeSelect.getItems().addAll("08:00 AM", "10:00 AM", "01:00 PM", "04:00 PM", "08:00 PM", "10:00 PM");
+        timeSelect.setPromptText("Time");
+        timeSelect.setPrefWidth(110);
+        timeSelect.setStyle("-fx-background-color: #f4f5f7; -fx-background-radius: 6; -fx-border-color: #e2e2e2; -fx-border-radius: 6; -fx-font-size: 13px;");
+        timeBox.getChildren().addAll(timeLbl, timeSelect);
+
+        topRow.getChildren().addAll(busBox, dateBox, timeBox);
+
+        // ── Seat Grid ──
         VBox seatBox = new VBox(6);
         Label seatLbl = new Label("Select a Seat");
         seatLbl.setStyle(fieldLabelStyle());
 
-        GridPane seatGrid = new GridPane();
-        seatGrid.setHgap(8);
-        seatGrid.setVgap(8);
-
         Label remainingLbl = new Label("Remaining Seats: -");
-        remainingLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #555; -fx-font-family: 'Segoe UI'; -fx-font-weight: bold;");
+        remainingLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #555; -fx-font-weight: bold;");
 
+        GridPane seatGrid = new GridPane();
+        seatGrid.setHgap(8); seatGrid.setVgap(8);
         seatBox.getChildren().addAll(seatLbl, remainingLbl, seatGrid);
 
         Label msgLabel = new Label("");
-        msgLabel.setWrapText(true);
-        msgLabel.setStyle("-fx-font-size: 12px; -fx-font-family: 'Segoe UI';");
+        msgLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold;");
 
         final int[] selectedSeatNum = {-1};
+        final Button[] lastSelectedBtn = {null};
 
-        busSelect.setOnAction(ev -> {
+        javafx.event.EventHandler<javafx.event.ActionEvent> reloadAction = ev -> {
             seatGrid.getChildren().clear();
             selectedSeatNum[0] = -1;
-            remainingLbl.setText("Remaining Seats: -");
-            if(busSelect.getValue() != null) {
-                String val = busSelect.getValue();
-                int bId = Integer.parseInt(val.split(" - ")[0]);
-                int capacity = Integer.parseInt(val.substring(val.indexOf("(") + 1, val.indexOf(" seats)")));
+            lastSelectedBtn[0] = null;
+            msgLabel.setText("");
 
-                java.util.Set<Integer> bookedSeats = new java.util.HashSet<>();
-                try (Connection c = DatabaseConnection.getConnection()) {
-                    ResultSet rs = c.createStatement().executeQuery("SELECT seat FROM bookings WHERE bus_id = " + bId);
-                    while(rs.next()) {
-                        bookedSeats.add(rs.getInt("seat"));
-                    }
-                } catch(Exception ignored) {}
-
-                int row = 0;
-                int col = 0;
-                for(int i=1; i<=capacity; i++) {
-                    Button sBtn = new Button(String.valueOf(i));
-                    sBtn.setPrefSize(40, 40);
-                    final int sNo = i;
-                    if (bookedSeats.contains(i)) {
-                        sBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6;");
-                        sBtn.setDisable(true);
-                    } else {
-                        sBtn.setStyle("-fx-background-color: #ecf0f1; -fx-text-fill: #333; -fx-font-weight: bold; -fx-background-radius: 6; -fx-cursor: hand;");
-                        sBtn.setOnAction(e -> {
-                            selectedSeatNum[0] = sNo;
-                            for(javafx.scene.Node n : seatGrid.getChildren()) {
-                                if(n instanceof Button && !n.isDisabled()) n.setStyle("-fx-background-color: #ecf0f1; -fx-text-fill: #333; -fx-font-weight: bold; -fx-background-radius: 6; -fx-cursor: hand;");
-                            }
-                            sBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-cursor: hand;");
-                            msgLabel.setText("");
-                        });
-                    }
-                    seatGrid.add(sBtn, col, row);
-
-                    col++;
-                    if (col == 2) {
-                        Region aisle = new Region();
-                        aisle.setPrefWidth(20);
-                        seatGrid.add(aisle, col, row);
-                        col++;
-                    } else if (col > 4) {
-                        col = 0;
-                        row++;
-                    }
-                }
-                int rem = capacity - bookedSeats.size();
-                remainingLbl.setText("Remaining Seats: " + rem + " / " + capacity);
-            }
-        });
-
-        Button bookBtn = new Button("Confirm Booking  \u2192");
-        bookBtn.setPrefWidth(400);
-        bookBtn.setPrefHeight(44);
-        bookBtn.setStyle("-fx-background-color: linear-gradient(to right, #0f3460, #16213e); " +
-                "-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold; " +
-                "-fx-background-radius: 10; -fx-cursor: hand; -fx-font-family: 'Segoe UI';");
-
-        bookBtn.setOnAction(e -> {
-            if (busSelect.getValue() == null || selectedSeatNum[0] == -1) {
-                msgLabel.setText("\u26A0  Please select a route, a bus, and an available seat.");
-                msgLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #e67e22; -fx-font-family: 'Segoe UI';");
+            if(busSelect.getValue() == null || datePicker.getValue() == null || timeSelect.getValue() == null) {
+                remainingLbl.setText("Please select Bus, Date, and Time.");
                 return;
             }
+            
             int busId = Integer.parseInt(busSelect.getValue().split(" - ")[0]);
-            int seatNo = selectedSeatNum[0];
+            String capStr = busSelect.getValue();
+            int capacity = Integer.parseInt(capStr.substring(capStr.indexOf("(") + 1, capStr.indexOf(" seats)")));
 
-            try (Connection conn = DatabaseConnection.getConnection()) {
-                // Double check if seat is still available
-                ResultSet checkRs = conn.createStatement().executeQuery("SELECT id FROM bookings WHERE bus_id = " + busId + " AND seat = " + seatNo);
-                if (checkRs.next()) {
-                    msgLabel.setText("\u26A0  Sorry, seat " + seatNo + " was just booked. Please select another.");
-                    msgLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #e67e22; -fx-font-family: 'Segoe UI';");
-                    String oldVal = busSelect.getValue();
-                    busSelect.setValue(null);
-                    busSelect.setValue(oldVal);
-                    return;
+            java.util.Set<Integer> bookedSeats = controller.getBookedSeats(busId, datePicker.getValue().toString(), timeSelect.getValue());
+
+            int row = 0, col = 0;
+            for(int i=1; i<=capacity; i++) {
+                final int sNo = i;
+                Button sBtn = new Button(String.valueOf(i));
+                sBtn.setPrefSize(40, 40);
+                if (bookedSeats.contains(i)) {
+                    sBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6;");
+                    sBtn.setDisable(true);
+                } else {
+                    sBtn.setStyle("-fx-background-color: #ecf0f1; -fx-text-fill: #333; -fx-font-weight: bold; -fx-background-radius: 6; -fx-cursor: hand;");
+                    sBtn.setOnAction(e -> {
+                        if (lastSelectedBtn[0] != null) lastSelectedBtn[0].setStyle("-fx-background-color: #ecf0f1; -fx-text-fill: #333; -fx-font-weight: bold; -fx-background-radius: 6; -fx-cursor: hand;");
+                        selectedSeatNum[0] = sNo;
+                        lastSelectedBtn[0] = sBtn;
+                        sBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-cursor: hand;");
+                        msgLabel.setText("");
+                    });
                 }
+                seatGrid.add(sBtn, col, row);
 
-                PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO bookings (user_id, bus_id, seat) VALUES (?,?,?)");
-                ps.setInt(1, loggedInUserId);
-                ps.setInt(2, busId);
-                ps.setInt(3, seatNo);
-                ps.executeUpdate();
+                col++;
+                if (col == 2) {
+                    Region aisle = new Region(); aisle.setPrefWidth(20);
+                    seatGrid.add(aisle, col, row); col++;
+                } else if (col > 4) { col = 0; row++; }
+            }
+            remainingLbl.setText("Remaining Seats: " + (capacity - bookedSeats.size()) + " / " + capacity);
+        };
 
-                msgLabel.setText("\u2714  Booking confirmed! Enjoy your ride.");
-                msgLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #27ae60; -fx-font-family: 'Segoe UI';");
-                routeSelect.setValue(null);
-                busSelect.getItems().clear();
-                seatGrid.getChildren().clear();
-                remainingLbl.setText("Remaining Seats: -");
-                selectedSeatNum[0] = -1;
-            } catch (Exception ex) {
-                msgLabel.setText("\u2718  Error: " + ex.getMessage());
-                msgLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #e94560; -fx-font-family: 'Segoe UI';");
+        busSelect.setOnAction(reloadAction);
+        datePicker.setOnAction(reloadAction);
+        timeSelect.setOnAction(reloadAction);
+
+        // ── Payment & Confirm ──
+        HBox payRow = new HBox(15);
+        payRow.setAlignment(Pos.CENTER_LEFT);
+        
+        VBox payCol = new VBox(6);
+        Label payLbl = new Label("Payment Method");
+        payLbl.setStyle(fieldLabelStyle());
+        ComboBox<String> paySelect = new ComboBox<>();
+        paySelect.getItems().addAll("Credit/Debit Card", "eSewa", "Khalti", "Cash on Board");
+        paySelect.setValue("Cash on Board");
+        paySelect.setPrefWidth(200);
+        paySelect.setStyle("-fx-background-color: #f4f5f7; -fx-background-radius: 6; -fx-border-color: #e2e2e2; -fx-border-radius: 6; -fx-font-size: 13px;");
+        payCol.getChildren().addAll(payLbl, paySelect);
+
+        Button bookBtn = new Button("Confirm Booking  \u2192");
+        bookBtn.setPrefHeight(42);
+        bookBtn.setStyle("-fx-background-color: linear-gradient(to right, #0f3460, #16213e); -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold; -fx-background-radius: 8; -fx-cursor: hand;");
+
+        payRow.getChildren().addAll(payCol, bookBtn);
+
+        bookBtn.setOnAction(e -> {
+            if (busSelect.getValue() == null || datePicker.getValue() == null || timeSelect.getValue() == null) {
+                msgLabel.setText("\u26A0 Please select Bus, Date, and Time."); msgLabel.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold;"); return;
+            }
+            // Validation: reject past dates (Test Case #1 fix)
+            if (datePicker.getValue().isBefore(java.time.LocalDate.now())) {
+                msgLabel.setText("\u26A0 Journey date cannot be in the past.");
+                msgLabel.setStyle("-fx-text-fill: #e74c3c; -fx-font-weight: bold;"); return;
+            }
+            if (selectedSeatNum[0] == -1) {
+                msgLabel.setText("\u26A0 Please select an open seat."); msgLabel.setStyle("-fx-text-fill: #e67e22; -fx-font-weight: bold;"); return;
+            }
+            
+            int busId = Integer.parseInt(busSelect.getValue().split(" - ")[0]);
+
+            
+            com.safetrack.model.Ticket t = controller.book(loggedInUserId, busId, selectedSeatNum[0], 
+                datePicker.getValue().toString(), timeSelect.getValue(), paySelect.getValue(), "PAID");
+                
+            if (t != null) {
+                String successMsg = "\u2714 Booking confirmed! Seat " + selectedSeatNum[0] + " on " + datePicker.getValue().toString();
+                msgLabel.setText(successMsg);
+                msgLabel.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
+
+                // Explicit success alert for better user feedback
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Booking Success");
+                alert.setHeaderText(null);
+                alert.setContentText("Your booking has been successfully completed!\n" +
+                                   "Bus: " + busSelect.getValue().split(" - ")[1] + "\n" +
+                                   "Seat: " + selectedSeatNum[0] + "\n" +
+                                   "Date: " + datePicker.getValue().toString());
+                alert.showAndWait();
+
+                routeSelect.setValue(null); busSelect.getItems().clear(); busSelect.setValue(null); datePicker.setValue(null); timeSelect.setValue(null);
+
+                seatGrid.getChildren().clear(); remainingLbl.setText("Remaining Seats: -");
+                selectedSeatNum[0] = -1; lastSelectedBtn[0] = null;
+            } else {
+                msgLabel.setText("\u2718 Sorry, seat was just taken!"); msgLabel.setStyle("-fx-text-fill: #e94560; -fx-font-weight: bold;");
             }
         });
 
-        formCard.getChildren().addAll(instruc, routeBox, busBox, seatBox, msgLabel, bookBtn);
+        formCard.getChildren().addAll(instruc, routeBox, topRow, seatBox, payRow, msgLabel);
         contentArea.getChildren().add(formCard);
     }
 
@@ -626,10 +656,10 @@ public class PassengerDashboardView extends Application {
 
     private VBox buildMyBookingsTable(int limit) {
         VBox box = new VBox(0);
-        box.getChildren().add(tableRow(true, "Booking ID", "Bus ID", "Bus Name", "Route", "Seat", "Actions"));
+        box.getChildren().add(tableRow(true, "Booking ID", "Bus Name", "Route", "Date & Time", "Seat", "Payment", "Status", "Actions"));
 
         try (Connection conn = DatabaseConnection.getConnection()) {
-            String sql = "SELECT tk.id, tk.bus_id, tk.seat, b.name as bus_name, r.source, r.destination " +
+            String sql = "SELECT tk.id, tk.bus_id, tk.seat, tk.journey_date, tk.journey_time, tk.payment_method, tk.ride_status, b.name as bus_name, r.source, r.destination " +
                     "FROM bookings tk " +
                     "JOIN buses b ON tk.bus_id = b.id " +
                     "LEFT JOIN routes r ON b.route_id = r.id " +
@@ -639,13 +669,21 @@ public class PassengerDashboardView extends Application {
             boolean alt = false;
             while (rs.next()) {
                 String routeStr = rs.getString("source") != null ? (rs.getString("source") + " \u2192 " + rs.getString("destination")) : "-";
+                // Adding colored label for status
+                Label statusLbl = new Label(rs.getString("ride_status"));
+                statusLbl.setStyle("-fx-font-weight: bold; -fx-text-fill: " + 
+                    (rs.getString("ride_status").equals("COMPLETED") ? "#27ae60" : 
+                    (rs.getString("ride_status").equals("CANCELLED") ? "#e74c3c" : "#f39c12")) + ";");
+                
                 HBox row = tableRow(false,
                         rs.getString("id"),
-                        rs.getString("bus_id"),
                         rs.getString("bus_name"),
                         routeStr,
+                        rs.getString("journey_date") + " " + rs.getString("journey_time"),
                         rs.getString("seat"),
-                        passengerActionBtns(rs.getString("id"), rs.getString("bus_id"), rs.getString("seat")));
+                        rs.getString("payment_method"),
+                        statusLbl,
+                        passengerActionBtns(rs.getString("id"), rs.getString("ride_status")));
                 if (alt) row.setStyle(row.getStyle() + "-fx-background-color: #fafafa;");
                 box.getChildren().add(row);
                 alt = !alt;
@@ -658,26 +696,27 @@ public class PassengerDashboardView extends Application {
         return box;
     }
 
-    private HBox passengerActionBtns(String bookingId, String busId, String oldSeat) {
+    private HBox passengerActionBtns(String bookingId, String rideStatus) {
         HBox box = new HBox(8);
-        Button editBtn = new Button("✎ Edit");
-        editBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 11px; -fx-cursor: hand; -fx-background-radius: 4;");
-        editBtn.setOnAction(e -> showPassengerEditBookingDialog(bookingId, busId, oldSeat));
-
-        Button delBtn = new Button("✖ Delete");
-        delBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 11px; -fx-cursor: hand; -fx-background-radius: 4;");
-        delBtn.setOnAction(e -> {
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Are you sure you want to cancel this booking?", ButtonType.YES, ButtonType.NO);
-            alert.showAndWait();
-            if (alert.getResult() == ButtonType.YES) {
-                try (Connection c = DatabaseConnection.getConnection()) {
-                    c.createStatement().executeUpdate("DELETE FROM bookings WHERE id = " + bookingId);
+        if ("UPCOMING".equals(rideStatus)) {
+            Button delBtn = new Button("✖ Cancel Ride");
+            delBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 11px; -fx-cursor: hand; -fx-background-radius: 4;");
+            delBtn.setOnAction(e -> {
+                Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Cancel this ride?", ButtonType.YES, ButtonType.NO);
+                alert.showAndWait();
+                if (alert.getResult() == ButtonType.YES) {
+                    new com.safetrack.dao.TicketDAO().updateRideStatus(Integer.parseInt(bookingId), "CANCELLED");
                     contentArea.getChildren().clear();
-                    loadMyBookingsPage();
-                } catch(Exception ex) { ex.printStackTrace(); }
-            }
-        });
-        box.getChildren().addAll(editBtn, delBtn);
+                    if(activeMenu.equals("Home")) loadHomePage();
+                    else loadMyBookingsPage();
+                }
+            });
+            box.getChildren().add(delBtn);
+        } else {
+            Label l = new Label("-");
+            l.setStyle("-fx-text-fill: #999;");
+            box.getChildren().add(l);
+        }
         return box;
     }
 

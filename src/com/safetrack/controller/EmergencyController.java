@@ -11,3 +11,4 @@ public class EmergencyController {
         dao.saveAlert(new EmergencyAlert(userId, "Emergency!"));
     }
 }
+

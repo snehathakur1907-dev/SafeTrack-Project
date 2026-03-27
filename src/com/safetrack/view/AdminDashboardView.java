@@ -12,6 +12,12 @@ import javafx.stage.Stage;
 
 import java.sql.*;
 
+/**
+ * Main GUI class for the Admin Dashboard.
+ * Handles the display and user interaction for managing Users, Buses, Routes, Bookings, and Emergency Contacts.
+ * All database operations are strictly delegated to respective Data Access Objects (DAOs) 
+ * to adhere closely to Object-Oriented Design principles and separation of concerns.
+ */
 public class AdminDashboardView extends Application {
 
     private BorderPane root;
@@ -44,6 +50,11 @@ public class AdminDashboardView extends Application {
     }
 
     // ── SIDEBAR ───────────────────────────────────────────────────────────────
+    /**
+     * Constructs the collapsible navigation sidebar.
+     * Includes navigation menu items for all main modules and a logout button.
+     * @return VBox containing the configured sidebar.
+     */
     private VBox buildSidebar() {
         VBox sidebar = new VBox(0);
         sidebar.setPrefWidth(isSidebarCollapsed ? 80 : 230);
@@ -184,6 +195,7 @@ public class AdminDashboardView extends Application {
 
         contentArea = new VBox(20);
         contentArea.setPadding(new Insets(28));
+        contentArea.setStyle("-fx-font-smoothing-type: lcd;");
 
         ScrollPane scroll = new ScrollPane(contentArea);
         scroll.setFitToWidth(true);
@@ -196,6 +208,10 @@ public class AdminDashboardView extends Application {
         return main;
     }
 
+    /**
+     * Dynamically clears the current content area and loads the selected page view.
+     * @param page The name of the module to load (e.g., "Dashboard", "Users", "Buses").
+     */
     private void loadPage(String page) {
         contentArea.getChildren().clear();
         switch (page) {
@@ -233,36 +249,47 @@ public class AdminDashboardView extends Application {
 
         Button saveBtn = actionButton("Save Changes", "#e94560");
 
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            PreparedStatement ps = conn.prepareStatement("SELECT name, username, email FROM users WHERE id = ?");
-            ps.setInt(1, currentUserId);
-            ResultSet rs = ps.executeQuery();
-            if(rs.next()) {
-                nameFd.setText(rs.getString("name"));
-                userFd.setText(rs.getString("username"));
-                emailFd.setText(rs.getString("email"));
-            }
-        } catch(Exception e) { e.printStackTrace(); }
+        com.safetrack.dao.UserDAO userDAO = new com.safetrack.dao.UserDAO();
+        String[] details = userDAO.getUserProfileDetails(currentUserId);
+        if (details != null) {
+            nameFd.setText(details[0]);
+            userFd.setText(details[1]);
+            emailFd.setText(details[2]);
+        }
 
         saveBtn.setOnAction(e -> {
-            try (Connection conn = DatabaseConnection.getConnection()) {
-                String q = passFd.getText().isEmpty() ? "UPDATE users SET name=?, username=?, email=? WHERE id=?"
-                        : "UPDATE users SET name=?, username=?, email=?, password=? WHERE id=?";
-                PreparedStatement ps = conn.prepareStatement(q);
-                ps.setString(1, nameFd.getText().trim());
-                ps.setString(2, userFd.getText().trim());
-                ps.setString(3, emailFd.getText().trim());
-                if (passFd.getText().isEmpty()) {
-                    ps.setInt(4, currentUserId);
-                } else {
-                    ps.setString(4, passFd.getText().trim());
-                    ps.setInt(5, currentUserId);
-                }
-                ps.executeUpdate();
-                successMsg.setText("\u2714 Profile updated successfully!");
+            String name = nameFd.getText().trim();
+            String user = userFd.getText().trim();
+            String email = emailFd.getText().trim();
+            String pass = passFd.getText().trim();
 
-                // Keep the password field hidden again
-                passFd.clear();
+            if (name.isEmpty() || user.isEmpty() || email.isEmpty()) {
+                successMsg.setText("\u2718 Error: All fields except password are required!");
+                successMsg.setStyle("-fx-text-fill: #c0392b; -fx-font-family: 'Segoe UI'; -fx-font-size: 13px;");
+                return;
+            }
+            if (!email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
+                successMsg.setText("\u2718 Error: Invalid email format!");
+                successMsg.setStyle("-fx-text-fill: #c0392b; -fx-font-family: 'Segoe UI'; -fx-font-size: 13px;");
+                return;
+            }
+
+            try {
+                boolean success = userDAO.updateProfile(
+                    currentUserId, 
+                    name, 
+                    user, 
+                    email, 
+                    pass
+                );
+                if (success) {
+                    successMsg.setText("\u2714 Profile updated successfully!");
+                    // Keep the password field hidden again
+                    passFd.clear();
+                } else {
+                    successMsg.setText("\u2718 Error: Could not update profile.");
+                    successMsg.setStyle("-fx-text-fill: #c0392b; -fx-font-family: 'Segoe UI'; -fx-font-size: 13px;");
+                }
             } catch(Exception ex) {
                 successMsg.setText("\u2718 Error: " + ex.getMessage());
                 successMsg.setStyle("-fx-text-fill: #c0392b; -fx-font-family: 'Segoe UI'; -fx-font-size: 13px;");
@@ -280,13 +307,8 @@ public class AdminDashboardView extends Application {
 
     // ── DASHBOARD PAGE ────────────────────────────────────────────────────────
     private void loadDashboardPage() {
-        int userCount = 0, busCount = 0, bookingCount = 0, routeCount = 0;
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            userCount = getCount(conn, "SELECT COUNT(*) FROM users");
-            bookingCount = getCount(conn, "SELECT COUNT(*) FROM bookings");
-            try { busCount = getCount(conn, "SELECT COUNT(*) FROM buses"); } catch (Exception ignored) {}
-            try { routeCount = getCount(conn, "SELECT COUNT(*) FROM routes"); } catch (Exception ignored) {}
-        } catch (Exception ignored) {}
+        int[] stats = new com.safetrack.dao.DashboardDAO().getDashboardStats();
+        int userCount = stats[0], busCount = stats[1], bookingCount = stats[2], routeCount = stats[3];
 
         HBox cards = new HBox(16);
         cards.getChildren().addAll(
@@ -301,10 +323,7 @@ public class AdminDashboardView extends Application {
         contentArea.getChildren().addAll(cards, recentLbl, tableCard);
     }
 
-    private int getCount(Connection conn, String sql) throws Exception {
-        ResultSet rs = conn.createStatement().executeQuery(sql);
-        return rs.next() ? rs.getInt(1) : 0;
-    }
+    // private int getCount removed as it's now in DashboardDAO
 
     private VBox statCard(String label, String value, String color, String icon) {
         VBox card = new VBox(8);
@@ -337,19 +356,18 @@ public class AdminDashboardView extends Application {
     private VBox buildUsersTable(int limit) {
         VBox box = new VBox(0);
         box.getChildren().add(tableRow(true, "ID", "Name", "Username", "Email", "Role", "Actions"));
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            String sql = "SELECT id, name, username, email, role FROM users ORDER BY id DESC" +
-                    (limit > 0 ? " LIMIT " + limit : "");
-            ResultSet rs = conn.createStatement().executeQuery(sql);
+        com.safetrack.dao.UserDAO userDAO = new com.safetrack.dao.UserDAO();
+        try {
+            java.util.List<String[]> users = userDAO.getAllUsers(limit);
             boolean alt = false;
-            while (rs.next()) {
+            for (String[] u : users) {
                 HBox row = tableRow(false,
-                        rs.getString("id"),
-                        nvl(rs.getString("name")),
-                        nvl(rs.getString("username")),
-                        nvl(rs.getString("email")),
-                        nvl(rs.getString("role")),
-                        actionButtons("users", rs.getString("id")));
+                        u[0],
+                        nvl(u[1]),
+                        nvl(u[2]),
+                        nvl(u[3]),
+                        nvl(u[4]),
+                        actionButtons("users", u[0]));
                 if (alt) row.setStyle(row.getStyle() + "-fx-background-color: #fafafa;");
                 box.getChildren().add(row);
                 alt = !alt;
@@ -373,55 +391,69 @@ public class AdminDashboardView extends Application {
         form.getChildren().add(sectionLabel("Add New Bus"));
         HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER_LEFT);
-        TextField busName = formField("Bus Name", 140);
-        TextField busNum  = formField("Bus Number", 100);
-        TextField cap     = formField("Capacity", 70);
-
+        TextField busName = formField("Bus Name", 150);
+        TextField busNum  = formField("Bus Number", 150);
+        TextField cap     = formField("Capacity", 80);
+        TextField timeFd = formField("Time (10:00 AM)", 110);
         ComboBox<String> routeBox = new ComboBox<>();
-        routeBox.setPromptText("Assign Route");
+        routeBox.setPromptText("Select Route");
         routeBox.setPrefWidth(180);
         routeBox.setPrefHeight(40);
         routeBox.setStyle("-fx-background-color: #f4f5f7; -fx-background-radius: 8; " +
                 "-fx-border-color: #e2e2e2; -fx-border-radius: 8; -fx-border-width: 1.5; " +
                 "-fx-font-size: 13px; -fx-font-family: 'Segoe UI';");
 
-        try (Connection c = DatabaseConnection.getConnection()) {
-            ResultSet rs = c.createStatement().executeQuery("SELECT id, source, destination FROM routes");
-            while(rs.next()) {
-                routeBox.getItems().add(rs.getInt("id") + " - " + rs.getString("source") + " to " + rs.getString("destination"));
-            }
-        } catch (Exception ignored) {}
+        com.safetrack.dao.RouteDAO routeDAO = new com.safetrack.dao.RouteDAO();
+        for (String[] r : routeDAO.getAllRoutes()) {
+            routeBox.getItems().add(r[0] + " - " + r[1] + " to " + r[2]);
+        }
 
+        com.safetrack.dao.BusDAO busDAO = new com.safetrack.dao.BusDAO();
         Button addBtn = actionButton("+ Add Bus", "#e94560");
         addBtn.setOnAction(e -> {
-            if (!busName.getText().trim().isEmpty() && routeBox.getValue() != null) {
-                try (Connection conn = DatabaseConnection.getConnection()) {
-                    PreparedStatement ps = conn.prepareStatement(
-                            "INSERT INTO buses (name, number, capacity, route_id) VALUES (?,?,?,?)");
-                    ps.setString(1, busName.getText().trim());
-                    ps.setString(2, busNum.getText().trim());
-                    ps.setString(3, cap.getText().trim().isEmpty() ? "0" : cap.getText().trim());
-                    int rId = Integer.parseInt(routeBox.getValue().split(" - ")[0]);
-                    ps.setInt(4, rId);
-                    ps.executeUpdate();
-                    busName.clear(); busNum.clear(); cap.clear(); routeBox.setValue(null);
-                    loadPage("Buses");
-                } catch (Exception ex) { ex.printStackTrace(); }
+            // Reset error styles
+            busName.setStyle(busName.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+            routeBox.setStyle(routeBox.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+            cap.setStyle(cap.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+            timeFd.setStyle(timeFd.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+
+            String nameTxt = busName.getText().trim();
+            String timeTxt = timeFd.getText().trim();
+            if(timeTxt.isEmpty()) timeTxt = "10:00 AM";
+
+            if (nameTxt.isEmpty() || routeBox.getValue() == null) {
+                if (nameTxt.isEmpty()) busName.setStyle(busName.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+                if (routeBox.getValue() == null) routeBox.setStyle(routeBox.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+                return;
             }
+
+            try {
+                int rId = Integer.parseInt(routeBox.getValue().split(" - ")[0]);
+                int parsedCap = 0;
+                String capTxt = cap.getText().trim();
+                if (!capTxt.isEmpty()) {
+                    parsedCap = Integer.parseInt(capTxt);
+                    if (parsedCap < 1) throw new NumberFormatException(); // Bus capacity must be positive
+                }
+                
+                busDAO.addBus(nameTxt, busNum.getText().trim(), parsedCap, timeTxt, rId);
+                busName.clear(); busNum.clear(); cap.clear(); timeFd.clear(); routeBox.setValue(null);
+                loadPage("Buses");
+            } catch (NumberFormatException ex) {
+                cap.setStyle(cap.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+            } catch (Exception ex) { ex.printStackTrace(); }
         });
-        row.getChildren().addAll(busName, busNum, cap, routeBox, addBtn);
+        row.getChildren().addAll(busName, busNum, cap, timeFd, routeBox, addBtn);
         form.getChildren().add(row);
 
         VBox table = new VBox(0);
         table.getChildren().add(tableRow(true, "ID", "Bus Name", "Number", "Capacity", "Route", "Actions"));
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            ResultSet rs = conn.createStatement().executeQuery(
-                    "SELECT b.*, r.source, r.destination FROM buses b LEFT JOIN routes r ON b.route_id = r.id ORDER BY b.id DESC");
+        try {
+            java.util.List<String[]> buses = busDAO.getAllBusesWithRoutes();
             boolean alt = false;
-            while (rs.next()) {
-                String routeStr = rs.getString("source") != null ? (rs.getString("source") + " \u2192 " + rs.getString("destination")) : "Unassigned";
-                HBox r = tableRow(false, rs.getString("id"), rs.getString("name"),
-                        nvl(rs.getString("number")), nvl(rs.getString("capacity")), routeStr, actionButtons("buses", rs.getString("id")));
+            for (String[] bus : buses) {
+                HBox r = tableRow(false, bus[0], bus[1],
+                        nvl(bus[2]), nvl(bus[3]), bus[4], actionButtons("buses", bus[0]));
                 if (alt) r.setStyle(r.getStyle() + "-fx-background-color: #fafafa;");
                 table.getChildren().add(r);
                 alt = !alt;
@@ -437,15 +469,14 @@ public class AdminDashboardView extends Application {
     // ── BOOKINGS PAGE ─────────────────────────────────────────────────────────
     private void loadBookingsPage() {
         VBox box = new VBox(0);
-        box.getChildren().add(tableRow(true, "Booking ID", "User ID", "Bus ID", "Bus Name", "Route", "Seat", "Actions"));
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            String sql = "SELECT tk.*, b.name as bus_name, r.source, r.destination FROM bookings tk JOIN buses b ON tk.bus_id = b.id LEFT JOIN routes r ON b.route_id = r.id ORDER BY tk.id DESC";
-            ResultSet rs = conn.createStatement().executeQuery(sql);
+        box.getChildren().add(tableRow(true, "ID", "User", "Bus", "Route", "Date", "Time", "Seat", "Pay", "Pay Status", "Ride Status", "Actions"));
+        com.safetrack.dao.TicketDAO ticketDAO = new com.safetrack.dao.TicketDAO();
+        try {
+            java.util.List<String[]> bookings = ticketDAO.getAllBookings();
             boolean alt = false;
-            while (rs.next()) {
-                String routeStr = rs.getString("source") != null ? (rs.getString("source") + " \u2192 " + rs.getString("destination")) : "-";
-                HBox row = tableRow(false, rs.getString("id"), rs.getString("user_id"),
-                        rs.getString("bus_id"), rs.getString("bus_name"), routeStr, rs.getString("seat"), actionButtons("bookings", rs.getString("id")));
+            for (String[] bk : bookings) {
+                // Formatted bk: [id, user_id, bus_id, bus_name, routeStr, journey_date, journey_time, seat, pay_method, pay_status, ride_status]
+                HBox row = tableRow(false, bk[0], bk[1], bk[3], bk[4], bk[5], bk[6], bk[7], bk[8], bk[9], bk[10], actionButtons("bookings", bk[0], bk[10]));
                 if (alt) row.setStyle(row.getStyle() + "-fx-background-color: #fafafa;");
                 box.getChildren().add(row);
                 alt = !alt;
@@ -472,33 +503,48 @@ public class AdminDashboardView extends Application {
         TextField from  = formField("From (Origin)", 180);
         TextField to    = formField("To (Destination)", 180);
         TextField fare  = formField("Fare (Rs.)", 100);
+        com.safetrack.dao.RouteDAO routeDAO = new com.safetrack.dao.RouteDAO();
         Button addBtn   = actionButton("+ Add Route", "#0f3460");
         addBtn.setOnAction(e -> {
-            if (!from.getText().trim().isEmpty()) {
-                try (Connection conn = DatabaseConnection.getConnection()) {
-                    PreparedStatement ps = conn.prepareStatement(
-                            "INSERT INTO routes (source, destination, fare) VALUES (?,?,?)");
-                    ps.setString(1, from.getText().trim());
-                    ps.setString(2, to.getText().trim());
-                    ps.setDouble(3, fare.getText().trim().isEmpty() ? 0 :
-                            Double.parseDouble(fare.getText().trim()));
-                    ps.executeUpdate();
-                    from.clear(); to.clear(); fare.clear();
-                    loadPage("Routes");
-                } catch (Exception ex) { ex.printStackTrace(); }
+            // Reset styles
+            from.setStyle(from.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+            to.setStyle(to.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+            fare.setStyle(fare.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+
+            String fromTxt = from.getText().trim();
+            String toTxt = to.getText().trim();
+            
+            if (fromTxt.isEmpty() || toTxt.isEmpty()) {
+                if (fromTxt.isEmpty()) from.setStyle(from.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+                if (toTxt.isEmpty()) to.setStyle(to.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+                return;
             }
+
+            try {
+                String fareTxt = fare.getText().trim();
+                double parsedFare = 0;
+                if (!fareTxt.isEmpty()) {
+                    parsedFare = Double.parseDouble(fareTxt);
+                    if (parsedFare < 0) throw new NumberFormatException();
+                }
+                routeDAO.addRoute(fromTxt, toTxt, parsedFare);
+                from.clear(); to.clear(); fare.clear();
+                loadPage("Routes");
+            } catch (NumberFormatException ex) {
+                fare.setStyle(fare.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+            } catch (Exception ex) { ex.printStackTrace(); }
         });
         row.getChildren().addAll(from, to, fare, addBtn);
         form.getChildren().add(row);
 
         VBox table = new VBox(0);
         table.getChildren().add(tableRow(true, "ID", "From", "To", "Fare (Rs.)", "Actions"));
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            ResultSet rs = conn.createStatement().executeQuery("SELECT * FROM routes ORDER BY id DESC");
+        try {
+            java.util.List<String[]> routes = routeDAO.getAllRoutes();
             boolean alt = false;
-            while (rs.next()) {
-                HBox r = tableRow(false, rs.getString("id"), rs.getString("source"),
-                        nvl(rs.getString("destination")), "Rs. " + rs.getString("fare"), actionButtons("routes", rs.getString("id")));
+            for (String[] rt : routes) {
+                HBox r = tableRow(false, rt[0], rt[1],
+                        nvl(rt[2]), "Rs. " + rt[3], actionButtons("routes", rt[0]));
                 if (alt) r.setStyle(r.getStyle() + "-fx-background-color: #fafafa;");
                 table.getChildren().add(r);
                 alt = !alt;
@@ -522,31 +568,44 @@ public class AdminDashboardView extends Application {
         TextField cName = formField("Name / Dept", 150);
         TextField cPhone = formField("Phone Number", 150);
         TextField cRel = formField("Emoji (e.g. 🚒)", 100);
+        com.safetrack.dao.EmergencyDAO emergencyDAO = new com.safetrack.dao.EmergencyDAO();
         Button addBtn = actionButton("+ Add", "#e94560");
         addBtn.setOnAction(e -> {
-            if (!cName.getText().trim().isEmpty() && !cPhone.getText().trim().isEmpty()) {
-                try (Connection conn = DatabaseConnection.getConnection()) {
-                    PreparedStatement ps = conn.prepareStatement(
-                            "INSERT INTO emergency_contacts (name, phone, relation) VALUES (?,?,?)");
-                    ps.setString(1, cName.getText().trim());
-                    ps.setString(2, cPhone.getText().trim());
-                    ps.setString(3, cRel.getText().trim().isEmpty() ? "📞" : cRel.getText().trim());
-                    ps.executeUpdate();
-                    cName.clear(); cPhone.clear(); cRel.clear();
-                    loadPage("Emergency");
-                } catch (Exception ex) { ex.printStackTrace(); }
+            cName.setStyle(cName.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+            cPhone.setStyle(cPhone.getStyle().replace("-fx-border-color: #e74c3c;", "-fx-border-color: #e2e2e2;"));
+            
+            String nameTxt = cName.getText().trim();
+            String phoneTxt = cPhone.getText().trim();
+            
+            if (nameTxt.isEmpty() || phoneTxt.isEmpty()) {
+                if (nameTxt.isEmpty()) cName.setStyle(cName.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+                if (phoneTxt.isEmpty()) cPhone.setStyle(cPhone.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+                return;
             }
+
+            if (!phoneTxt.matches("^[0-9+\\-() ]+$")) {
+                cPhone.setStyle(cPhone.getStyle().replace("-fx-border-color: #e2e2e2;", "-fx-border-color: #e74c3c;"));
+                return;
+            }
+
+            try {
+                String relation = cRel.getText().trim().isEmpty() ? "📞" : cRel.getText().trim();
+                emergencyDAO.addEmergencyContact(nameTxt, phoneTxt, relation);
+                cName.clear(); cPhone.clear(); cRel.clear();
+                loadPage("Emergency");
+            } catch (Exception ex) { ex.printStackTrace(); }
         });
         row.getChildren().addAll(cName, cPhone, cRel, addBtn);
         form.getChildren().add(row);
 
         VBox rowList = new VBox(12);
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            ResultSet rs = conn.createStatement().executeQuery("SELECT * FROM emergency_contacts ORDER BY id DESC");
-            while (rs.next()) {
-                String nameStr = rs.getString("name");
-                String iconStr = rs.getString("relation") != null && !rs.getString("relation").isEmpty()
-                        ? rs.getString("relation") : "📞";
+        try {
+            java.util.List<String[]> contacts = emergencyDAO.getAllEmergencyContacts();
+            for (String[] contact : contacts) {
+                String idStr = contact[0];
+                String nameStr = contact[1];
+                String phoneStr = contact[2];
+                String iconStr = contact[3] != null && !contact[3].isEmpty() ? contact[3] : "📞";
 
                 HBox card = new HBox(16);
                 card.setAlignment(Pos.CENTER_LEFT);
@@ -559,14 +618,14 @@ public class AdminDashboardView extends Application {
                 VBox info = new VBox(3);
                 Label nameLbl = new Label(nameStr);
                 nameLbl.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #1a1a2e; -fx-font-family: 'Segoe UI';");
-                Label numLbl = new Label(rs.getString("phone"));
+                Label numLbl = new Label(phoneStr);
                 numLbl.setStyle("-fx-font-size: 15px; -fx-text-fill: #e94560; -fx-font-weight: bold; -fx-font-family: 'Segoe UI';");
                 info.getChildren().addAll(nameLbl, numLbl);
 
                 Region spacer = new Region();
                 HBox.setHgrow(spacer, Priority.ALWAYS);
 
-                card.getChildren().addAll(ic, info, spacer, actionButtons("emergency_contacts", rs.getString("id")));
+                card.getChildren().addAll(ic, info, spacer, actionButtons("emergency_contacts", idStr));
                 rowList.getChildren().add(card);
             }
             if (rowList.getChildren().isEmpty()) rowList.getChildren().add(emptyLabel("No emergency contacts found."));
@@ -576,7 +635,24 @@ public class AdminDashboardView extends Application {
     }
 
     // ── DYNAMIC CRUD HELPERS ──────────────────────────────────────────────────
-    private HBox actionButtons(String table, String id) {
+    private HBox actionButtons(String table, String id, String... extra) {
+        HBox actions = new HBox(8);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        // For bookings, show a "Mark Completed" button if ride is UPCOMING
+        if (table.equals("bookings")) {
+            if (extra.length > 0 && "UPCOMING".equals(extra[0])) {
+                Button completeBtn = new Button("✔ Finish");
+                completeBtn.setStyle("-fx-background-color: #2ecc71; -fx-text-fill: white; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 4; -fx-padding: 4 8;");
+                completeBtn.setOnAction(e -> {
+                    new com.safetrack.dao.TicketDAO().updateRideStatus(Integer.parseInt(id), "COMPLETED");
+                    loadPage("Bookings");
+                });
+                actions.getChildren().add(completeBtn);
+            }
+            return actions;
+        }
+
         Button editBtn = new Button("✎ Edit");
         editBtn.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 4; -fx-padding: 4 8;");
         editBtn.setOnAction(e -> showEditDialog(table, id));
@@ -585,20 +661,45 @@ public class AdminDashboardView extends Application {
         delBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 4; -fx-padding: 4 8;");
         delBtn.setOnAction(e -> deleteRecord(table, id));
 
-        HBox actions = new HBox(8, editBtn, delBtn);
-        actions.setAlignment(Pos.CENTER_LEFT);
+        actions.getChildren().addAll(editBtn, delBtn);
         return actions;
     }
 
+    /**
+     * Deletes a record by dispatching to the correct typed DAO method.
+     * BEFORE: used raw SQL "DELETE FROM "+table+" WHERE id="+id (bypassed DAO layer, injection risk).
+     * AFTER: every table routes through its dedicated DAO — no raw SQL in this view.
+     *
+     * @param table the logical name used to identify which DAO to use
+     * @param id    string primary key of the record to delete
+     */
     private void deleteRecord(String table, String id) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Delete record " + id + " from " + table + "?", ButtonType.YES, ButtonType.NO);
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
+                "Delete record #" + id + " from " + table + "?", ButtonType.YES, ButtonType.NO);
         alert.showAndWait();
-        if (alert.getResult() == ButtonType.YES) {
-            try (Connection conn = DatabaseConnection.getConnection()) {
-                conn.createStatement().executeUpdate("DELETE FROM " + table + " WHERE id = " + id);
-                loadPage(activeMenu);
-            } catch (Exception ex) { ex.printStackTrace(); }
-        }
+        if (alert.getResult() != ButtonType.YES) return;
+
+        int recordId = Integer.parseInt(id);
+        try {
+            switch (table) {
+                case "users":
+                    new com.safetrack.dao.UserDAO().deleteUser(recordId);
+                    break;
+                case "buses":
+                    new com.safetrack.dao.BusDAO().deleteBus(recordId);
+                    break;
+                case "routes":
+                    new com.safetrack.dao.RouteDAO().deleteRoute(recordId);
+                    break;
+                case "emergency_contacts":
+                    new com.safetrack.dao.EmergencyDAO().deleteContact(recordId);
+                    break;
+                default:
+                    System.err.println("Unknown table for deletion: " + table);
+                    return;
+            }
+            loadPage(activeMenu);
+        } catch (Exception ex) { ex.printStackTrace(); }
     }
 
     private void showEditDialog(String table, String id) {

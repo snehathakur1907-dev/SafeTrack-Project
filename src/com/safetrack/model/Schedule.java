@@ -1,15 +1,22 @@
 package com.safetrack.model;
 
+/**
+ * Represents a bus departure and arrival schedule.
+ */
 public class Schedule {
-    private int busId;
+
+    private int    busId;
     private String departureTime;
     private String arrivalTime;
 
     public Schedule(int busId, String departureTime, String arrivalTime) {
-        this.busId = busId;
+        this.busId         = busId;
         this.departureTime = departureTime;
-        this.arrivalTime = arrivalTime;
+        this.arrivalTime   = arrivalTime;
     }
 
-    public int getBusId() { return busId; }
+    // Getters
+    public int    getBusId()        { return busId; }
+    public String getDepartureTime(){ return departureTime; }
+    public String getArrivalTime()  { return arrivalTime; }
 }
