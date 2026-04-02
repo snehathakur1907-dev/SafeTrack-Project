@@ -1,0 +1,66 @@
+.root {
+    -fx-font-family: "Segoe UI";
+}
+
+/* Background overlay handled in Java */
+
+/* Card */
+.card {
+    -fx-background-color: rgba(255,255,255,0.1);
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+    -fx-border-color: rgba(255,255,255,0.2);
+}
+
+/* Inputs */
+.text-field, .password-field {
+    -fx-background-color: rgba(255,255,255,0.2);
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: #cccccc;
+    -fx-background-radius: 15;
+    -fx-padding: 10;
+}
+
+/* Title */
+.title {
+    -fx-font-size: 26px;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+/* Subtitle */
+.subtitle {
+    -fx-text-fill: lightgray;
+}
+
+/* Login Button */
+.login-btn {
+    -fx-background-color: linear-gradient(to right, #00c6ff, #0072ff);
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 20;
+    -fx-padding: 10 20;
+}
+
+/* Hover */
+.login-btn:hover {
+    -fx-background-color: linear-gradient(to right, #0072ff, #00c6ff);
+}
+
+/* Register Button */
+.register-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
+    -fx-border-color: white;
+    -fx-border-radius: 20;
+    -fx-padding: 8 20;
+}
+
+/* Message */
+.success {
+    -fx-text-fill: lightgreen;
+}
+
+.error {
+    -fx-text-fill: red;
+}
